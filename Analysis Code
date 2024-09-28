@@ -1,10 +1,12 @@
-setwd("D:/Academics/sem2/field epidemiology/assignment")
+#Load initial required Library
+
 library(readxl)
 library(hms)
 library(lubridate)
 library(dplyr)
 
-tabula_xoswego_401_303_student <- read.csv("/Volumes/Win_11_Pro_/assignment/tabula-xoswego.401-303.student.csv")  
+
+tabula_xoswego_401_303_student <- read.csv("https://github.com/solomon-idan/Oswego/blob/main/tabula-xoswego.401-303.student.csv")  
 View(tabula_xoswego_401_303_student)
 
 new<-tabula_xoswego_401_303_student
