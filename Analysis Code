@@ -1,0 +1,620 @@
+setwd("D:/Academics/sem2/field epidemiology/assignment")
+library(readxl)
+library(hms)
+library(lubridate)
+library(dplyr)
+
+tabula_xoswego_401_303_student <- read.csv("/Volumes/Win_11_Pro_/assignment/tabula-xoswego.401-303.student.csv")  
+View(tabula_xoswego_401_303_student)
+
+new<-tabula_xoswego_401_303_student
+str(new)
+View(new)
+
+#convertion to time and date
+new$onsettime<-parse_hms(new$onsettime)
+new$Dateofonset<-parse_date_time(new$Dateofonset,"dmy")
+new$mealtime<-parse_date_time(new$mealtime,"HMS")
+
+#updating mealtime for onset to include time
+dom<- new$mealtime%>% update(year  = 1940,month = 04,mday  = 18)
+dom
+
+#adding up to table
+new<-new%>%mutate(ton=Dateofonset+onsettime)
+new<-new%>%mutate(dom=dom)
+
+View(new)
+
+#transforming other variables
+new<- transform(new, sex=as.factor(SEX),ill=as.factor(ill),
+                     bham=as.factor(Bakedham), spinach=as.factor(Spinach),
+                     mpota=as.factor(Mashedpotato),cabsa=as.factor(Cabbage_salad),
+                     jel=as.factor(Jello),rol=as.factor(Rolls),bbread=as.factor(Brownbread),
+                     milk=as.factor(Milk), cof=as.factor(Coffee), water=as.factor(Water),
+                     cake=as.factor(Cakes), vanil=as.factor(vanilla_Icecream),
+                     choc=as.factor(chocolateIce_icecream), frusal=as.factor(Fruit_salad))
+
+#setting up the dataframe
+new<-as.data.frame(new)
+
+#graph the cases by time of onset of illness 
+format(min(new$ton, na.rm=T), "%A %d %b, %Y %H:%M") #min time of onset
+format(max(new$ton, na.rm=T), "%A %d %b, %Y %H:%M") #max time of onset
+
+
+#plotting epi curve
+library(ggplot2)
+ggplot(data = new) +          # set data
+  geom_histogram(                      # add histogram
+    mapping = aes(x = ton,      # map date column to x-axis
+    group=ID, fill=sex),
+    na.rm = TRUE,color="white")+                     # cases binned by 400 sec 
+  theme_minimal()+ theme(axis.title = element_text(face = "bold"))+
+  labs(title= "Epidemic Curve of Gastrointestinal Illness Outbreak in Oswego",
+       x = "Time of symptom onset",
+       y = "Case Count")+
+  scale_x_datetime(date_breaks = "2 hours",date_labels ="%d-%b\n%H:%M")+
+  scale_y_continuous(breaks =c(2,4,6,8,10))
+
+  
+#parameter of onset of symtoms
+min<-min(new$ton,na.rm = TRUE)
+min[new$ID]
+med<-median(new$ton,na.rm=TRUE)
+med[new$ID]
+new$ID[med]
+a<-subset(new,ton==med,select = ID)
+a
+max(new$ton,na.rm = TRUE)
+
+#alternative but limited to days
+library(outbreaks)
+library(incidence2)
+
+new$ton<-as.Date(new$ton) #convert into usable format of the package
+i_d<-incidence(new, date_index = ton, interval ='days', groups = sex)
+i_d #frequncy per day
+
+plot(i_d, color = "white", n_breaks =1)
+
+
+#calculate incubation periods
+new<-new%>%mutate(ton=Dateofonset+onsettime) #reconsitute date again
+
+new<- new%>%mutate(incu_period=ton-dom) #generate incu-period
+print(new$incu_period)
+
+#illustrate the distribution of incubation period with an appropriate graph
+ggplot(data = new) + geom_bar(mapping = aes(x = incu_period,
+                                group=ID, fill=sex),
+                            color="white", na.rm = TRUE)+ 
+  theme_minimal()+ theme(axis.title = element_text(face = "bold"))+
+  labs(title= "Incubation period of Gastrointestinal Illness Outbreak in Oswego",
+       x = "Incubation Period (Hours)",
+       y = "Incident cases count")+
+  scale_y_continuous(breaks =c(2,4,6,8,10))
+
+
+#Determine the range and median of the incubation period
+  #range
+range(new$incu_period,na.rm=T)
+
+min(new$incu_period,na.rm=T)
+
+max(new$incu_period,na.rm=T)
+
+#median
+median(new$incu_period,na.rm=T)
+
+mean(new$incu_period,na.rm=T) #trying mean to compare
+
+library(epikit)
+#incident rate per type of food
+
+    #baked ham
+
+#total number ate bakedham
+bh<-subset(new,Bakedham==1)
+count(bh)
+#ate baked ham and sick
+bh_i<-subset(new,ill==1 & Bakedham==1)
+count(bh_i)
+#ate baked ham amd not sick
+bh_ni<-subset(new,ill==0 & Bakedham==1)
+count(bh_ni)
+
+#attack rate of those who ate baked ham 
+bh<-as.numeric(count(bh)) 
+bh_i<-as.numeric(count(bh_i))
+bhar_i<-attack_rate(bh_i,bh, mergeCI = TRUE,multiplier = 100, digits = 2) 
+bhar_i
+
+#total number NOT ate bakedham
+nbh<-subset(new,Bakedham==0)
+count(nbh)
+
+#ill but NOT eat bakedham
+nbh_i<-subset(new,ill==1& Bakedham==0)
+count(nbh_i)
+#not ill NOT eat bakedham
+nbh_ni<-subset(new,ill==0 & Bakedham==0)
+count(nbh_ni)
+
+#attack rate not eat baked ham
+nbh_i<-as.numeric(count(nbh_i)) 
+nbh<-as.numeric(count(nbh))
+bhar_ni<-attack_rate(nbh_i,nbh, mergeCI = TRUE,multiplier = 100, digits = 2) 
+bhar_ni
+
+  
+     #spinach
+#total number ate spinach
+sp<-subset(new,spinach==1)
+count(sp)
+#ate spinach and sick
+sp_i<-subset(new,ill==1 & spinach==1)
+count(sp_i)
+#ate spinach and not sick
+sp_ni<-subset(new,ill==0 & spinach==1)
+count(sp_ni)
+
+#attack rate of those who ate spinach
+sp<-as.numeric(count(sp)) 
+sp_i<-as.numeric(count(sp_i))
+spar_i<-attack_rate(sp_i,sp, mergeCI = TRUE,multiplier = 100, digits = 2) 
+spar_i
+
+#total number NOT ate spinach
+nsp<-subset(new,spinach==0)
+count(nsp)
+#ill but NOT eat spinach
+nsp_i<-subset(new,ill==1& spinach==0)
+count(nsp_i)
+#not ill NOT eat spinach
+nsp_ni<-subset(new,ill==0 & spinach==0)
+count(nsp_ni)
+
+#attack rate not eat baked ham
+nsp_i<-as.numeric(count(nsp_i)) 
+nsp<-as.numeric(count(nsp))
+spar_i<-attack_rate(nsp_i,nsp, mergeCI = TRUE,multiplier = 100, digits = 2) 
+spar_i
+
+    #mashed potato
+#total number ate mashed potato
+mp<-subset(new,mpota==1)
+count(mp)
+#ate mashed potato and sick
+mp_i<-subset(new,ill==1 & mpota==1)
+count(mp_i)
+#ate mashed potato and not sick
+mp_ni<-subset(new,ill==0 & mpota==1)
+count(mp_ni)
+
+#attack rate of those who ate mashed potato
+mp<-as.numeric(count(mp)) 
+mp_i<-as.numeric(count(mp_i))
+mpar_i<-attack_rate(mp_i,mp, mergeCI = TRUE,multiplier = 100, digits = 2) 
+mpar_i
+
+#total number NOT ate mashed potato
+nmp<-subset(new,mpota==0)
+count(nmp)
+#ill but NOT eat mashed potato
+nmp_i<-subset(new,ill==1& mpota==0)
+count(nmp_i)
+#not ill NOT eat mashed potato
+nmp_ni<-subset(new,ill==0 & mpota==0)
+count(nmp_ni)
+
+#attack rate not mashed potato
+nmp_i<-as.numeric(count(nmp_i)) 
+nmp<-as.numeric(count(nmp))
+nmpar_i<-attack_rate(nmp_i,nmp, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nmpar_i
+    
+    #cabbage salad
+#total number ate cabbage salad
+cs<-subset(new,cabsa==1)
+count(cs)
+#ate cabbage salad and sick
+cs_i<-subset(new,ill==1 & cabsa==1)
+count(cs_i)
+#ate cabbage salad and not sick
+cs_ni<-subset(new,ill==0 & cabsa==1)
+count(cs_ni)
+
+#attack rate of those who ate cabbage salad
+cs<-as.numeric(count(cs)) 
+cs_i<-as.numeric(count(cs_i))
+csar_i<-attack_rate(cs_i,cs, mergeCI = TRUE,multiplier = 100, digits = 2) 
+csar_i
+
+#total number NOT ate cabbage salad
+ncs<-subset(new,cabsa==0)
+count(ncs)
+#ill but NOT eat cabbage salad
+ncs_i<-subset(new,ill==1& cabsa==0)
+count(ncs_i)
+#not ill NOT eat cabbage salad
+ncs_ni<-subset(new,ill==0 & cabsa==0)
+count(ncs_ni)
+
+#attack rate not cabbage salad
+ncs_i<-as.numeric(count(ncs_i)) 
+ncs<-as.numeric(count(ncs))
+ncsar_i<-attack_rate(ncs_i,ncs, mergeCI = TRUE,multiplier = 100, digits = 2) 
+ncsar_i 
+
+  #jello
+#total number ate jello
+jl<-subset(new,jel==1)
+count(jl)
+#ate jello and sick
+jl_i<-subset(new,ill==1 & jel==1)
+count(jl_i)
+#ate jello and not sick
+jl_ni<-subset(new,ill==0 & jel==1)
+count(jl_ni)
+
+#attack rate of those who ate jello
+jl<-as.numeric(count(jl)) 
+jl_i<-as.numeric(count(jl_i))
+jlar_i<-attack_rate(jl_i,jl, mergeCI = TRUE,multiplier = 100, digits = 2) 
+jlar_i
+
+#total number NOT ate jello
+njel<-subset(new,jel==0)
+count(njel)
+#ill but NOT eat jello
+njel_i<-subset(new,ill==1& jel==0)
+count(njel_i)
+#not ill NOT eat jello
+njel_ni<-subset(new,ill==0 & jel==0)
+count(njel_ni)
+
+#attack rate not jello
+njel_i<-as.numeric(count(njel_i)) 
+njel<-as.numeric(count(njel))
+jelar_i<-attack_rate(njel_i,njel, mergeCI = TRUE,multiplier = 100, digits = 2) 
+jelar_i
+
+    #rolls
+
+#total number ate rolls
+rl<-subset(new,rol==1)
+count(rl)
+#ate rolls and sick
+rl_i<-subset(new,ill==1 & rol==1)
+count(rl_i)
+#ate rolls and not sick
+rl_ni<-subset(new,ill==0 & rol==1)
+count(rl_ni)
+
+#attack rate of those who ate rolls
+rl<-as.numeric(count(rl)) 
+rl_i<-as.numeric(count(rl_i))
+rlar_i<-attack_rate(rl_i,rl, mergeCI = TRUE,multiplier = 100, digits = 2) 
+rlar_i
+
+#total number NOT ate rolls
+nrl<-subset(new,rol==0)
+count(nrl)
+#ill but NOT eat rolls
+nrl_i<-subset(new,ill==1& rol==0)
+count(nrl_i)
+#not ill NOT eat rolls
+nrl_ni<-subset(new,ill==0 & rol==0)
+count(nrl_ni)
+
+#attack rate not rolls
+nrl_i<-as.numeric(count(nrl_i)) 
+nrl<-as.numeric(count(nrl))
+rlar_i<-attack_rate(nrl_i,nrl, mergeCI = TRUE,multiplier = 100, digits = 2) 
+rlar_i
+
+    #brown bread
+
+#total number ate brown bread
+brb<-subset(new,bbread==1)
+count(brb)
+#ate brown bread and sick
+brb_i<-subset(new,ill==1 & bbread==1)
+count(brb_i)
+#ate brown bread and not sick
+brb_ni<-subset(new,ill==0 & bbread==1)
+count(brb_ni)
+
+#attack rate of those who ate brown bread
+brb<-as.numeric(count(brb)) 
+brb_i<-as.numeric(count(brb_i))
+brbar_i<-attack_rate(brb_i,brb, mergeCI = TRUE,multiplier = 100, digits = 2) 
+brbar_i
+
+#total number NOT ate brown bread
+nbrb<-subset(new,bbread==0)
+count(nbrb)
+#ill but NOT eat brown bread
+nbrb_i<-subset(new,ill==1& bbread==0)
+count(nbrb_i)
+#not ill NOT eat brown bread
+nbrb_ni<-subset(new,ill==0 & bbread==0)
+count(nbrb_ni)
+
+#attack rate not brown bread
+nbrb_i<-as.numeric(count(nbrb_i)) 
+nbrb<-as.numeric(count(nbrb))
+brbar_i<-attack_rate(nbrb_i,nbrb, mergeCI = TRUE,multiplier = 100, digits = 2) 
+brbar_i
+
+    #milk 
+
+#total number ate milk
+mk<-subset(new,milk==1)
+count(mk)
+#ate milk and sick
+mk_i<-subset(new,ill==1 & milk==1)
+count(mk_i)
+#ate milk and not sick
+mk_ni<-subset(new,ill==0 & milk==1)
+count(mk_ni)
+
+#attack rate of those who ate milk
+mk<-as.numeric(count(mk)) 
+mk_i<-as.numeric(count(mk_i))
+mkar_i<-attack_rate(mk_i,mk, mergeCI = TRUE,multiplier = 100, digits = 2) 
+mkar_i
+
+#total number NOT ate milk
+nmk<-subset(new,milk==0)
+count(nmk)
+#ill but NOT eat milk
+nmk_i<-subset(new,ill==1& milk==0)
+count(nmk_i)
+#not ill NOT eat milk
+nmk_ni<-subset(new,ill==0 & milk==0)
+count(nmk_ni)
+
+#attack rate not milk
+nmk_i<-as.numeric(count(nmk_i)) 
+nmk<-as.numeric(count(nmk))
+nmkar_i<-attack_rate(nmk_i,nmk, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nmkar_i
+
+    
+    #coffee
+
+#total number ate coffee
+cf<-subset(new,cof==1)
+count(cf)
+#ate coffee and sick
+cf_i<-subset(new,ill==1 & cof==1)
+count(cf_i)
+#ate coffee and not sick
+cf_ni<-subset(new,ill==0 & cof==1)
+count(cf_ni)
+
+#attack rate of those who ate coffee
+cf<-as.numeric(count(cf)) 
+cf_i<-as.numeric(count(cf_i))
+cfar_i<-attack_rate(cf_i,cf, mergeCI = TRUE,multiplier = 100, digits = 2) 
+cfar_i
+
+#total number NOT ate coffee
+ncf<-subset(new,cof==0)
+count(ncf)
+#ill but NOT eat coffee
+ncf_i<-subset(new,ill==1& cof==0)
+count(ncf_i)
+#not ill NOT eat coffee
+ncf_ni<-subset(new,ill==0 & cof==0)
+count(ncf_ni)
+
+#attack rate not coffee
+ncf_i<-as.numeric(count(ncf_i)) 
+ncf<-as.numeric(count(ncf))
+ncfar_i<-attack_rate(ncf_i,ncf, mergeCI = TRUE,multiplier = 100, digits = 2) 
+ncfar_i
+
+    #water
+#water
+#total number ate water
+wt<-subset(new,water==1)
+count(wt)
+#ate water and sick
+wt_i<-subset(new,ill==1 & water==1)
+count(wt_i)
+#ate water and not sick
+wt_ni<-subset(new,ill==0 & water==1)
+count(wt_ni)
+
+#attack rate of those who ate water
+wt<-as.numeric(count(wt)) 
+wt_i<-as.numeric(count(wt_i))
+wtar_i<-attack_rate(wt_i,wt, mergeCI = TRUE,multiplier = 100, digits = 2) 
+wtar_i
+
+#total number NOT ate water
+nwt<-subset(new,water==0)
+count(nwt)
+#ill but NOT eat water
+nwt_i<-subset(new,ill==1& water==0)
+count(nwt_i)
+#not ill NOT eat water
+nwt_ni<-subset(new,ill==0 & water==0)
+count(nwt_ni)
+
+#attack rate not water
+nwt_i<-as.numeric(count(nwt_i)) 
+nwt<-as.numeric(count(nwt))
+nwtar_i<-attack_rate(nwt_i,nwt, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nwtar_i
+
+    #cakes
+
+#total number ate cakes
+ck<-subset(new,cake==1)
+count(ck)
+#ate cakes and sick
+ck_i<-subset(new,ill==1 & cake==1)
+count(ck_i)
+#ate cakes and not sick
+ck_ni<-subset(new,ill==0 & cake==1)
+count(ck_ni)
+
+#attack rate of those who ate cakes
+ck<-as.numeric(count(ck)) 
+ck_i<-as.numeric(count(ck_i))
+ckar_i<-attack_rate(ck_i,ck, mergeCI = TRUE,multiplier = 100, digits = 2) 
+ckar_i
+
+#total number NOT ate cakes
+nck<-subset(new,cake==0)
+count(nck)
+#ill but NOT eat cakes
+nck_i<-subset(new,ill==1& cake==0)
+count(nck_i)
+#not ill NOT eat cakes
+nck_ni<-subset(new,ill==0 & cake==0)
+count(nck_ni)
+
+#attack rate not cakes
+nck_i<-as.numeric(count(nck_i)) 
+nck<-as.numeric(count(nck))
+nckar_i<-attack_rate(nck_i,nck, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nckar_i
+
+    #vanilla
+
+#total number ate vanilla
+vn<-subset(new,vanil==1)
+count(vn)
+#ate vanilla and sick
+vn_i<-subset(new,ill==1 & vanil==1)
+count(vn_i)
+#ate vanilla and not sick
+vn_ni<-subset(new,ill==0 & vanil==1)
+count(vn_ni)
+
+#attack rate of those who ate vanilla
+vn<-as.numeric(count(vn)) 
+vn_i<-as.numeric(count(vn_i))
+vnar_i<-attack_rate(vn_i,vn, mergeCI = TRUE,multiplier = 100, digits = 2) 
+vnar_i
+
+#total number NOT ate vanilla
+nvn<-subset(new,vanil==0)
+count(nvn)
+#ill but NOT eat vanilla
+nvn_i<-subset(new,ill==1& vanil==0)
+count(nvn_i)
+#not ill NOT eat vanilla
+nvn_ni<-subset(new,ill==0 & vanil==0)
+count(nvn_ni)
+
+#attack rate not vanilla
+nvn_i<-as.numeric(count(nvn_i)) 
+nvn<-as.numeric(count(nvn))
+nvnar_i<-attack_rate(nvn_i,nvn, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nvnar_i
+
+    #chocolate
+
+#total number ate chocolate
+ch<-subset(new,choc==1)
+count(ch)
+#ate chocolate and sick
+ch_i<-subset(new,ill==1 & choc==1)
+count(ch_i)
+#ate chocolate and not sick
+ch_ni<-subset(new,ill==0 & choc==1)
+count(ch_ni)
+
+#attack rate of those who ate chocolate
+ch<-as.numeric(count(ch)) 
+ch_i<-as.numeric(count(ch_i))
+char_i<-attack_rate(ch_i,ch, mergeCI = TRUE,multiplier = 100, digits = 2) 
+char_i
+
+#total number NOT ate chocolate
+nch<-subset(new,choc==0)
+count(nch)
+#ill but NOT eat chocolate
+nch_i<-subset(new,ill==1& choc==0)
+count(nch_i)
+#not ill NOT eat chocolate
+nch_ni<-subset(new,ill==0 & choc==0)
+count(nch_ni)
+
+#attack rate not chocolate
+nch_i<-as.numeric(count(nch_i)) 
+nch<-as.numeric(count(nch))
+nchar_i<-attack_rate(nch_i,nch, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nchar_i
+
+    #fruitsalad
+
+#total number ate fruit salad
+fs<-subset(new,frusal==1)
+count(fs)
+#ate fruit salad and sick
+fs_i<-subset(new,ill==1 & frusal==1)
+count(fs_i)
+#ate fruit salad and not sick
+fs_ni<-subset(new,ill==0 & frusal==1)
+count(fs_ni)
+
+#attack rate of those who ate fruit salad
+fs<-as.numeric(count(fs)) 
+fs_i<-as.numeric(count(fs_i))
+fsar_i<-attack_rate(fs_i,fs, mergeCI = TRUE,multiplier = 100, digits = 2) 
+fsar_i
+
+#total number NOT ate fruit salad
+nfs<-subset(new,frusal==0)
+count(nfs)
+#ill but NOT eat fruit salad
+nfs_i<-subset(new,ill==1& frusal==0)
+count(nfs_i)
+#not ill NOT eat fruit salad
+nfs_ni<-subset(new,ill==0 & frusal==0)
+count(nfs_ni)
+
+#attack rate not fruit salad
+nfs_i<-as.numeric(count(nfs_i)) 
+nfs<-as.numeric(count(nfs))
+nfsar_i<-attack_rate(nfs_i,nfs, mergeCI = TRUE,multiplier = 100, digits = 2) 
+nfsar_i
+
+#attack rate ratio
+table<-table(as.numeric(count(nfs_i)),as.numeric(count(nfs_ni)),as.numeric(count(fs_i)),as.numeric(count(fs_ni)))
+attack_rate_table<-attack_rate_table%>%mutate()
+
+##plotting out individual attack rate
+foodtype<-c("Baked ham",
+            "Spinach",
+            "Mashed potato",
+            "Cabbage salad",
+            "Jello",
+            "Rolls",
+            "Brown bread",
+            "Milk",
+            "Coffee",
+            "Water",
+            "Cakes",
+            "Ice cream, vanilla",
+            "Ice cream, chocolate",
+            "Fruit salad")
+
+attack_rates<- c(bhar_i$ar, spar_i$ar,mpar_i$ar,
+                        csar_i$ar, jlar_i$ar, rlar_i$ar,
+                        brbar_i$ar, mkar_i$ar,cfar_i$ar,
+                        wtar_i$ar,
+                        ckar_i$ar,
+                        vnar_i$ar,
+                        char_i$ar,
+                        fsar_i$ar)
+
+attack_rate_by_food<-data.frame(foodtype,round(attack_rates))
+print(attack_rate_by_food)
