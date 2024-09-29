@@ -1,5 +1,4 @@
-cd "D:\Academics\sem2\field epidemiology"
-import excel "D:\Academics\sem2\field epidemiology\slides\oswego data.xlsx", sheet("foodtype added") firstrow clear
+import excel "https://github.com/solomon-idan/Oswego/blob/main/tabula-xoswego.401-303.student.csv") firstrow clear
 
 rename A id
 
